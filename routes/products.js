@@ -1,14 +1,21 @@
 const express = require('express');
 const router = express.Router();
 const Product = require('../models/Product');
+const authenticateUser = require('../middleware/auth');
 
-// GET all products
+// Apply authentication middleware to all product routes
+router.use(authenticateUser);
+
+// GET all products for the authenticated user
 router.get('/', async (req, res) => {
   try {
     const { page = 1, limit = 10, category, minPrice, maxPrice, search } = req.query;
     
-    // Build filter
-    let filter = { isActive: true };
+    // Build filter for user's products only
+    let filter = { 
+      user: req.user._id,
+      isActive: true 
+    };
     
     if (category) {
       filter.category = category;
@@ -52,15 +59,18 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET product by ID
+// GET product by ID (only if it belongs to the authenticated user)
 router.get('/:id', async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findOne({ 
+      _id: req.params.id, 
+      user: req.user._id 
+    });
     
     if (!product) {
       return res.status(404).json({
         success: false,
-        message: 'Product not found'
+        message: 'Product not found or you do not have permission to access it'
       });
     }
     
@@ -86,7 +96,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// CREATE new product
+// CREATE new product for the authenticated user
 router.post('/', async (req, res) => {
   try {
     const { name, description, price, category, stock, brand, sku, images, tags } = req.body;
@@ -109,7 +119,8 @@ router.post('/', async (req, res) => {
       brand,
       sku,
       images,
-      tags
+      tags,
+      user: req.user._id  // Associate product with authenticated user
     });
     
     await product.save();
@@ -129,7 +140,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// UPDATE product by ID
+// UPDATE product by ID (only if it belongs to the authenticated user)
 router.put('/:id', async (req, res) => {
   try {
     const { name, description, price, category, stock, brand, sku, images, tags, isActive } = req.body;
@@ -148,8 +159,8 @@ router.put('/:id', async (req, res) => {
       }
     }
     
-    const product = await Product.findByIdAndUpdate(
-      req.params.id,
+    const product = await Product.findOneAndUpdate(
+      { _id: req.params.id, user: req.user._id },
       { name, description, price, category, stock, brand, sku, images, tags, isActive },
       { new: true, runValidators: true }
     );
@@ -157,7 +168,7 @@ router.put('/:id', async (req, res) => {
     if (!product) {
       return res.status(404).json({
         success: false,
-        message: 'Product not found'
+        message: 'Product not found or you do not have permission to update it'
       });
     }
     
@@ -176,11 +187,11 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// DELETE product (soft delete)
+// DELETE product (soft delete) - only if it belongs to the authenticated user
 router.delete('/:id', async (req, res) => {
   try {
-    const product = await Product.findByIdAndUpdate(
-      req.params.id,
+    const product = await Product.findOneAndUpdate(
+      { _id: req.params.id, user: req.user._id },
       { isActive: false },
       { new: true }
     );
@@ -188,7 +199,7 @@ router.delete('/:id', async (req, res) => {
     if (!product) {
       return res.status(404).json({
         success: false,
-        message: 'Product not found'
+        message: 'Product not found or you do not have permission to delete it'
       });
     }
     
@@ -207,7 +218,7 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// GET products by category
+// GET products by category for the authenticated user
 router.get('/category/:category', async (req, res) => {
   try {
     const { category } = req.params;
@@ -215,6 +226,7 @@ router.get('/category/:category', async (req, res) => {
     
     const products = await Product.find({ 
       category: category.toLowerCase(), 
+      user: req.user._id,
       isActive: true 
     })
       .sort({ createdAt: -1 })
@@ -223,6 +235,7 @@ router.get('/category/:category', async (req, res) => {
     
     const total = await Product.countDocuments({ 
       category: category.toLowerCase(), 
+      user: req.user._id,
       isActive: true 
     });
     
@@ -247,7 +260,7 @@ router.get('/category/:category', async (req, res) => {
   }
 });
 
-// SEARCH products
+// SEARCH products for the authenticated user
 router.get('/search/:query', async (req, res) => {
   try {
     const { query } = req.params;
@@ -255,6 +268,7 @@ router.get('/search/:query', async (req, res) => {
     
     const products = await Product.find({
       $and: [
+        { user: req.user._id },
         { isActive: true },
         { $text: { $search: query } }
       ]
@@ -265,6 +279,7 @@ router.get('/search/:query', async (req, res) => {
     
     const total = await Product.countDocuments({
       $and: [
+        { user: req.user._id },
         { isActive: true },
         { $text: { $search: query } }
       ]

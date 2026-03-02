@@ -42,6 +42,11 @@ const productSchema = new mongoose.Schema({
     trim: true,
     uppercase: true
   },
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: [true, 'Product must belong to a user']
+  },
   isActive: {
     type: Boolean,
     default: true

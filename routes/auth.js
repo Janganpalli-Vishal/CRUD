@@ -76,12 +76,13 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Return user data without password
+    // Return user data without password and include user ID for session tracking
     res.status(200).json({
       success: true,
       message: 'Login successful',
       data: {
         user: user,
+        userId: user._id,  // Include user ID for session tracking
         loginTime: new Date()
       }
     });
